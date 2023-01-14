@@ -2,8 +2,8 @@
 from static_data import PATH, DELTA_SECONDS
 from typing import Dict
 import datetime as dt
-from stat_arb_old.src.working_with_files.preprocessing import get_asset_prices
-from stat_arb_old.src.working_with_files.xml_to_csv import save_to_csv
+from stat_arb.src.file_functions.preprocessing import get_asset_prices
+from stat_arb.src.file_functions.xml_to_csv import save_to_csv
 
 
 def get_synthetic_fx(base_asset_prices: Dict[dt.datetime, float],
@@ -27,9 +27,9 @@ def get_synthetic_fx(base_asset_prices: Dict[dt.datetime, float],
 
 if __name__ == '__main__':
     # Get necessary FX pairs adat
-    cnhrub_moex = get_asset_prices(path=PATH, asset='CNHRUB', price_source='moex_fixing', delta_seconds=DELTA_SECONDS)
-    usdrub_moex = get_asset_prices(path=PATH, asset='USDRUB', price_source='moex_fixing', delta_seconds=DELTA_SECONDS)
-    usdcnh_offshore = get_asset_prices(path=PATH, asset='USDCNH', price_source='bbg', delta_seconds=DELTA_SECONDS)
+    cnhrub_moex = get_asset_prices(path=PATH, asset='CNHRUB', price_source='moex', delta_seconds=DELTA_SECONDS)
+    usdrub_moex = get_asset_prices(path=PATH, asset='USDRUB', price_source='moex', delta_seconds=DELTA_SECONDS)
+    usdcnh_offshore = get_asset_prices(path=PATH, asset='USDCNH', price_source='rbi', delta_seconds=DELTA_SECONDS)
 
     # Calculate synthetic FX
     cnh_rub_synthetic = get_synthetic_fx(base_asset_prices=usdrub_moex, second_asset_prices=usdcnh_offshore)

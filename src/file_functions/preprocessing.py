@@ -36,9 +36,14 @@ def reader_decorator(func):
         try:
             # Get all files from the directory with the specified filename
             files_in_directory = [f for f in os.listdir(path + directory) if filename in f]
+
             # Checks that the filename is unique. If not, raises the AssertionError
             assert len(set(files_in_directory)) == len(files_in_directory), f'Ambiguous file {filename} for ' \
                                                                             f'directory {directory}'
+
+            # Checks that the data for the specified asset is available in directory
+            assert len(files_in_directory) > 0, f'No {kwargs["price_source"]} data for {kwargs["asset"]}'
+
             # Take the applicable file. If no files were found, IndexError will be called
             file = files_in_directory[0]
         except IndexError:
@@ -72,8 +77,9 @@ def csv_reader(path_to_file: str, filename: str) -> List[Tuple]:
     """
     with open(path_to_file + filename + '.csv') as csv_file:
         csv_data = [line for line in csv_file][1:]
-        return [tuple([dt.strptime(line.split(',')[0].split('+')[0].split('.')[0], '%Y-%m-%d %H:%M:%S'),
-                       float(line.split(',')[1])]) for line in csv_data if line.split(',')[1] != '']
+        return [(dt.strptime(line.split(',')[0].split('+')[0].split('.')[0], '%Y-%m-%d %H:%M:%S'),
+                 float(line.split(',')[1])) for line in csv_data
+                if line.split(',')[1] != '']
 
 
 def xml_reader(path_to_file: str, filename: str) -> List[Tuple[dt, float]]:
@@ -137,7 +143,7 @@ def opt_data_filename_decorator(func):
     return transformer_asset_name
 
 
-def return_data_filename_decorator(func):
+def price_data_filename_decorator(func):
     """
     Decorates function with specified asset and pricing source into usual file naming format.
 
@@ -188,7 +194,39 @@ def transform_option_deals_into_dict(func):
     return list_of_dicts
 
 
-@return_data_filename_decorator
+@price_data_filename_decorator
+@reader_decorator
+def get_asset_prices(input_data: List[Tuple[dt, float]], delta_seconds: int, **kwargs) -> Dict[dt, float]:
+    """
+    Generates list of asset prices.
+    Applies reader decorator to get and read appropriate file by specified asset name.
+    Applies filename decorator to change asset name into filename.
+
+        Parameters:
+            input_data (list): Processing function to decorate (e.g., getting returns of some asset).
+            delta_seconds (int): Timestamp difference between returns in seconds (e.g., 9 * 60 * 60 for daily spacing).
+
+        Returns:
+            output_dict (dict): Asset's {timestamp: price} dict.
+    """
+    assert len(input_data) > 0, f'{kwargs["price_source"].upper()} data for {kwargs["asset"].upper()} is empty!'
+
+    output_dict = {}
+
+    # Calculate appropriate index spacing for the list of returns to match specified delta_seconds
+    for j in range(0, len(input_data)):
+        time_delta = abs((input_data[j][0] - input_data[0][0]).total_seconds())
+        if time_delta >= delta_seconds:
+            break
+
+    for i in range(0, len(input_data) - j, j):
+        # Generate prices list, passing some prices inside delta_seconds interval (includes only significant spaces)
+        output_dict[input_data[i][0]] = input_data[i][1]
+
+    return output_dict
+
+
+@price_data_filename_decorator
 @reader_decorator
 def get_asset_returns(input_data: List[Tuple[dt, float]], delta_seconds: int, **kwargs) -> Dict[dt, float]:
     """
@@ -203,6 +241,8 @@ def get_asset_returns(input_data: List[Tuple[dt, float]], delta_seconds: int, **
         Returns:
             output_dict (dict): Asset's {timestamp: return} dict.
     """
+    assert len(input_data) > 0, f'{kwargs["price_source"].upper()} data for {kwargs["asset"].upper()} is empty!'
+
     output_dict = {}
 
     # Calculate appropriate index spacing for the list of returns to match specified delta_seconds
@@ -219,36 +259,6 @@ def get_asset_returns(input_data: List[Tuple[dt, float]], delta_seconds: int, **
         adj_coefficient = abs((input_data[i + j][0] - input_data[i][0]).total_seconds()) / time_delta
         # Generate returns in the form of log-price difference (better features of distribution than r[i+1] / r[i] - 1)
         output_dict[input_data[i + j][0]] = (np.log(input_data[i + j][1]) - np.log(input_data[i][1])) / adj_coefficient
-
-    return output_dict
-
-
-@return_data_filename_decorator
-@reader_decorator
-def get_asset_prices(input_data: List[Tuple[dt, float]], delta_seconds: int, **kwargs) -> Dict[dt, float]:
-    """
-    Generates list of asset prices.
-    Applies reader decorator to get and read appropriate file by specified asset name.
-    Applies filename decorator to change asset name into filename.
-
-        Parameters:
-            input_data (list): Processing function to decorate (e.g., getting returns of some asset).
-            delta_seconds (int): Timestamp difference between returns in seconds (e.g., 9 * 60 * 60 for daily spacing).
-
-        Returns:
-            output_dict (dict): Asset's {timestamp: price} dict.
-    """
-    output_dict = {}
-
-    # Calculate appropriate index spacing for the list of returns to match specified delta_seconds
-    for j in range(0, len(input_data)):
-        time_delta = abs((input_data[j][0] - input_data[0][0]).total_seconds())
-        if time_delta >= delta_seconds:
-            break
-
-    for i in range(0, len(input_data) - j, j):
-        # Generate prices list, passing some prices inside delta_seconds interval (includes only significant spaces)
-        output_dict[input_data[i][0]] = input_data[i][1]
 
     return output_dict
 
